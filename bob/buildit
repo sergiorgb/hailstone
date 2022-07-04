@@ -1,0 +1,28 @@
+#!/bin/bash
+ln -sf /proc/self/mounts /etc/mtab
+emerge-webrsync
+eselect profile set 99
+emerge --ask --verbose --update --deep --newuse @world
+emerge sys-kernel/dracut NetworkManager kernel/linux-firmware apps/pciutils sys-kernel/installkernel-gentoo sys-boot/grub cups
+systemd-firstboot  --setup-machine-id
+systemctl preset-all
+systemd-machine-id-setup
+hostnamectl set-hostname hailstone
+localectl set-locale LANG=en_US.utf8
+localectl set-keymap la-latin1
+localectl set-x11-keymap la-latin1
+ln -snf /run/systemd/resolve/resolv.conf /etc/resolv.conf
+systemctl enable systemd-networkd.service
+systemctl enable systemd-resolved.service
+systemctl enable NetworkManager.service
+systemctl enable sshd.service
+ln -sf /usr/share/zoneinfo/America/Bogota /etc/localtime
+echo en_US ISO-8859-1 >> /etc/locale.gen
+echo en_US.UTF-8 UTF-8 >> /etc/locale.gen
+locale-gen
+eselect locale set 5
+emerge @module-rebuild
+grub-install --target=x86_64-efi --efi-directory=/boot --removable
+useradd -m -G users,wheel,audio,video -s /bin/bash user
+## Dude now configure the damm fstab sir
+

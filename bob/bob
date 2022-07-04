@@ -1,0 +1,61 @@
+#!/bin/bash
+
+# Bob The System Builder
+
+## Vars
+
+ROOTFSURL=https://bouncer.gentoo.org/fetch/root/all/releases/amd64/autobuilds/20220703T170542Z/stage3-amd64-desktop-systemd-20220703T170542Z.tar.xz
+BUILDIR="$(dirname $0)/build"
+DIR="$(dirname $0)"
+## Get a rootfs
+
+aria2c -x 8 -s 8 $ROOTFSURL
+
+## Unpack it
+
+mkdir $BUILDIR
+mv stage3-*.tar.xz $BUILDIR
+sudo tar xpvf stage3-*.tar.xz --xattrs-include='*.*' --numeric-owner
+rm -f $BUILDIR/stage3-*.tar.xz
+
+## Creating The hardened/selinux/systemd profile
+
+mkdir --parents $BUILDIR/var/db/repos/local/profiles/hardened-desktop
+echo 7 >$BUILDIR/var/db/repos/local/profiles/hardened-desktop/eapi
+echo `portageq envvar ARCH` hardened-desktop exp >> $BUILDIR/var/db/repos/local/profiles/profiles.desc
+echo "gentoo:default/linux/amd64/17.1/hardened" > $BUILDIR/var/db/repos/local/profiles/hardened-desktop/parent
+echo "gentoo:targets/desktop/gnome/systemd" >>  $BUILDIR/var/db/repos/local/profiles/hardened-desktop/parent
+
+## Copy the stuffs
+
+sudo cp $DIR/buildit $BUILDIR/bin/
+sudo mkdir --parents $BUILDIR/etc/portage
+sudo cp $DIR/make.conf $BUILDIR/etc/portage/
+
+## Tweaks before chroot
+
+sudo mkdir --parents $BUILDIR/etc/portage/repos.conf
+sudo cp $BUILDIR/usr/share/portage/config/repos.conf $BUILDIR/etc/portage/repos.conf/gentoo.conf
+sudo cp --dereference /etc/resolv.conf $BUILDIR/etc/
+sudo mount --types proc /proc $BUILDIR/proc
+sudo mount --rbind /sys $BUILDIR/sys
+sudo mount --make-rslave $BUILDIR/sys
+sudo mount --rbind /dev $BUILDIR/dev
+sudo mount --make-rslave $BUILDIR/dev
+sudo mount --bind /run $BUILDIR/run
+sudo mount --make-slave $BUILDIR/run
+sudo su -c "test -L /dev/shm && rm /dev/shm && mkdir /dev/shm"
+sudo mount --types tmpfs --options nosuid,nodev,noexec shm /dev/shm
+sudo chmod 1777 /dev/shm /run/shm
+
+## Build it!
+
+sudo chroot $BUILDIR /bin/buildit
+
+## Remove Vendor Stuff
+
+sudo rm $BUILDIR/etc/
+
+## Pack it up
+
+tar -czvf hailstone-rootfs.tar.gz $BUILDIR
